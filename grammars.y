@@ -1,11 +1,15 @@
 %{
 #include<stdio.h>
+#include "ast.h"
 
 extern int yyparse();
+
+struct decl* parser_result = NULL;
+
 %}
 
 /* Keyword */
-%token TOKEN_IF TOKEN_FOR TOKEN_RETURN TOKEN_PRINT 
+%token TOKEN_IF TOKEN_ELSE TOKEN_FOR TOKEN_RETURN TOKEN_PRINT 
 %token TOKEN_BOOL TOKEN_INTEGER TOKEN_CHAR TOKEN_TYPE_STRING TOKEN_ARRAY TOKEN_VOID
 %token TOKEN_FUNC 
 
@@ -25,125 +29,192 @@ extern int yyparse();
 /* literal*/
 %token TOKEN_NUMBER TOKEN_STRING TOKEN_NAME
 
+
+%union {
+    struct decl* decl;
+    struct stmt* stmt;
+    struct type* type;
+    struct expr* expr;
+    struct param_list* param_list; 
+    char* name;
+};
+
+%type <decl> program decl decl_list
+%type <type> type
+%type <stmt> stmt_suite simple_stmt small_stmt
+%type <name> name
+%type <param_list> funcarg
+%type <expr> expr expr_or expr_and expr_atom expr_comp expr_incdec
+%type <expr> expr_arith expr_expon expr_unary expr_trailer expr_callarg expr_factor
+%type <expr> expr_name expr_number
 %%
 
 program: decl_list 
-        { printf("program accept.\n"); }
+        { printf("program accept.\n"); parser_result = $1; decl_destory(parser_result); }
     ;
     
-decl_list:decl
-    | decl_list decl
-        {}
+decl_list:decl  {$$ = $1; }
+    | decl decl_list
+        {$$ = $1; $1->next = $2;}
     ;
 
-decl: TOKEN_NAME TOKEN_COLON type TOKEN_SEMI 
-        {printf("Done: decl_not_assign %d\n", $3); }
-    | TOKEN_NAME TOKEN_COLON type TOKEN_ASSIGN expr TOKEN_SEMI
-        {printf("Done: decl_assign %d\n", $5);}
-    | TOKEN_NAME TOKEN_COLON type TOKEN_ASSIGN stmt_suite
-        {printf("Done: decl_func\n"); }
+decl: name TOKEN_COLON type TOKEN_SEMI 
+        {$$ = decl_create($1, $3, NULL, NULL, NULL); }
+    | name TOKEN_COLON type TOKEN_ASSIGN expr TOKEN_SEMI
+        {$$ = decl_create($1, $3, $5, NULL, NULL);}
+    | name TOKEN_COLON type TOKEN_ASSIGN stmt_suite
+        {$$ = decl_create($1, $3, NULL, $5, NULL); }
     ;
+
+name: TOKEN_NAME { $$ = yylval.name; yylval.name = NULL;}
 
 
 type: TOKEN_BOOL
+        {$$ = type_create(TYPE_BOOLEAN, NULL, NULL);}
     | TOKEN_INTEGER
+        {$$ = type_create(TYPE_INTEGER, NULL, NULL);}
     | TOKEN_CHAR
+        {$$ = type_create(TYPE_CHARACTER, NULL, NULL);}
     | TOKEN_TYPE_STRING
-    | TOKEN_ARRAY
+        {$$ = type_create(TYPE_STRING, NULL, NULL);}
+    | TOKEN_ARRAY TOKEN_LSQB TOKEN_RSQB type
+        {$$ = type_create(TYPE_ARRAY, $4, NULL); }
     | TOKEN_VOID
+        {$$ = type_create(TYPE_VOID, NULL, NULL); }
     | TOKEN_FUNC type TOKEN_LPAREN funcarg TOKEN_RPAREN
+        {$$ = type_create(TYPE_FUNCTION, $2, $4); }
     ;
 
 
-funcarg: {} 
-    | TOKEN_NAME TOKEN_COLON type 
-    | TOKEN_NAME TOKEN_COLON type TOKEN_COMMA funcarg
+funcarg: {$$ = NULL;} 
+    | name TOKEN_COLON type
+        {$$ = param_list_create($1, $3, NULL);} 
+    | name TOKEN_COLON type TOKEN_COMMA funcarg
+        {$$ = param_list_create($1, $3, $5);}
     ;
 
-
-simple_stmt: small_stmt
-    | simple_stmt small_stmt
-    ;    
 
 stmt_suite: TOKEN_LBRACE simple_stmt TOKEN_RBRACE
+            {$$ = stmt_create(STMT_BLOCK, NULL, NULL, NULL, NULL, $2, NULL, NULL);}
     ;
 
-small_stmt: TOKEN_RETURN expr TOKEN_SEMI 
-    | TOKEN_PRINT expr TOKEN_SEMI   {printf("print stmt\n");}
+simple_stmt: small_stmt {$$ = $1;}
+    | small_stmt simple_stmt
+        {$$ = $1; $1->next = $2;}
+    ;    
+
+small_stmt: TOKEN_RETURN expr TOKEN_SEMI
+            {$$ = stmt_create(STMT_RETURN, NULL, NULL, $2, NULL, NULL, NULL, NULL);} 
+    | TOKEN_PRINT expr TOKEN_SEMI
+        {$$ = stmt_create(STMT_PRINT, NULL, NULL, $2, NULL, NULL, NULL, NULL);}     
     | TOKEN_IF TOKEN_LPAREN expr TOKEN_RPAREN stmt_suite
-        {printf("Get IF.\n");}
+        {$$ = stmt_create(STMT_IF_ELSE, NULL, NULL, $3, NULL, $5, NULL, NULL);}     
+    | TOKEN_IF TOKEN_LPAREN expr TOKEN_RPAREN stmt_suite TOKEN_ELSE stmt_suite 
+        {$$ = stmt_create(STMT_IF_ELSE, NULL, NULL, $3, NULL, $5, $7, NULL);}     
     | TOKEN_FOR TOKEN_LPAREN expr TOKEN_SEMI expr TOKEN_SEMI expr TOKEN_RPAREN stmt_suite
-        {printf("Get For.\n");}
+        {$$ = stmt_create(STMT_FOR, NULL, $3, $5, $7, $9, NULL, NULL);}     
     | decl
+        {$$ = stmt_create(STMT_DECL, $1, NULL, NULL, NULL, NULL, NULL, NULL);}     
     | expr TOKEN_SEMI
+        {$$ = stmt_create(STMT_EXPR, NULL, NULL, $1, NULL, NULL, NULL, NULL);}
     ;
 
 //expr_list:
 //    | expr_list expr
 //    ;
 
-expr: expr_or {printf("get expr\n"); }
-    |TOKEN_NAME TOKEN_ASSIGN expr_or
+expr: expr_or {$$ = $1;}
+    | expr_name TOKEN_ASSIGN expr_or
+        {$$ = expr_create(EXPR_ASSIGN, $1, $3);}
     ;
 
-expr_or: expr_and
+expr_or: expr_and {$$ = $1;}
     | expr_or TOKEN_OR expr_and
+        {$$ = expr_create(EXPR_OR, $1, $3);}
     ;
 
-expr_and: expr_comp
+expr_and: expr_comp {$$ = $1;}
     | expr_and TOKEN_AND expr_comp
+        {$$ = expr_create(EXPR_AND, $1, $3);}
     ;
 
-expr_comp: expr_arith
-    | expr_comp comp_op expr_arith
+expr_comp: expr_arith {$$ = $1;}
+    | expr_comp TOKEN_LESS expr_arith
+        {$$ = expr_create(EXPR_LESS, $1, $3);}
+    | expr_comp TOKEN_LESSEQU expr_arith
+        {$$ = expr_create(EXPR_LESSEQU, $1, $3);}
+    | expr_comp TOKEN_GREATEREQU expr_arith
+        {$$ = expr_create(EXPR_GREATEREQU, $1, $3);}
+    | expr_comp TOKEN_GREATER expr_arith
+        {$$ = expr_create(EXPR_GREATER, $1, $3);}
+    | expr_comp TOKEN_EQUAL expr_arith
+        {$$ = expr_create(EXPR_EQUAL, $1, $3);}
+    | expr_comp TOKEN_NOTEQUAL expr_arith
+        {$$ = expr_create(EXPR_NOTEQUAL, $1, $3);}
     ;
 
-comp_op: TOKEN_LESS
-    | TOKEN_LESSEQU
-    | TOKEN_GREATER
-    | TOKEN_GREATEREQU
-    | TOKEN_EQUAL
-    | TOKEN_NOTEQUAL
-    ;
-
-expr_arith: expr_factor
+expr_arith: expr_factor {$$ = $1;}
     | expr_arith TOKEN_ADD expr_factor
+        {$$ = expr_create(EXPR_ADD, $1, $3);}
     | expr_arith TOKEN_MINUS expr_factor
+        {$$ = expr_create(EXPR_MINUS, $1, $3);}
     ;
 
-expr_factor: expr_expon
+expr_factor: expr_expon {$$ = $1;}
     | expr_factor TOKEN_MUL expr_expon
+        {$$ = expr_create(EXPR_MUL, $1, $3);}
     | expr_factor TOKEN_DIV expr_expon
+        {$$ = expr_create(EXPR_DIV, $1, $3);}
     | expr_factor TOKEN_MOD expr_expon
+        {$$ = expr_create(EXPR_MOD, $1, $3);}
     ;
 
-expr_expon: expr_unary
+expr_expon: expr_unary {$$ = $1;}
     | expr_expon TOKEN_EXPON expr_unary
+        {$$ = expr_create(EXPR_EXPON, $1, $3);}
     ;
 
-expr_unary: expr_incdec
+expr_unary: expr_incdec {$$ = $1;}
     | TOKEN_BANG expr_incdec
+        {$$ = expr_create(EXPR_BANG, $2, NULL);}
     | TOKEN_MINUS expr_incdec
+        {$$ = expr_create(EXPR_LOGNOT, $2, NULL);}
     ;
 
-expr_incdec: expr_trailer
+expr_incdec: expr_trailer {$$ = $1;}
     | TOKEN_INC expr_trailer
+        {$$ = expr_create(EXPR_INC, $2, NULL);}
     | TOKEN_DEC expr_trailer
+        {$$ = expr_create(EXPR_DEC, $2, NULL);}
     ;
 
-expr_trailer: expr_atom
+expr_trailer: expr_atom {$$ = $1;}
     | TOKEN_LPAREN expr TOKEN_RPAREN
-    | TOKEN_NAME TOKEN_LSQB TOKEN_NUMBER TOKEN_RSQB
-    | TOKEN_NAME TOKEN_LPAREN expr_callarg TOKEN_RPAREN
+        {$$ = $2;}
+    | expr_name TOKEN_LSQB expr_number TOKEN_RSQB
+        {$$ = expr_create(EXPR_SUBCRIPT, $1, $3);}
+    | expr_name TOKEN_LPAREN expr_callarg TOKEN_RPAREN
+        {$$ = expr_create(EXPR_CALL, $1, $3);}
     ;
 
-expr_callarg: expr
+expr_callarg: {$$ = NULL;} 
+        | expr {$$ = expr_create(EXPR_ARG, $1, NULL);}
         | expr TOKEN_COMMA expr_callarg
+            {$$ = expr_create(EXPR_ARG, $1, $3); }
 
-expr_atom: TOKEN_NAME {printf("get name\n");}
-    | TOKEN_NUMBER {printf("get number: %d\n", yylval);}
-    | TOKEN_STRING
-    ; 
+expr_atom: expr_name {$$ = $1;}
+    | expr_number {$$ = $1;}
+    | TOKEN_STRING 
+        {$$ = expr_create_string(yylval.name);}
+    ;
+
+expr_name: TOKEN_NAME
+            {$$ = expr_create_name(yylval.name); yylval.name = NULL;}
+        ;
+
+expr_number: TOKEN_NUMBER
+            {$$ = expr_create_number((int)yylval.name);}
+    ;
 
 %%
 

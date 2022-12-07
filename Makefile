@@ -3,11 +3,15 @@
 
 all: BMinorParser
 
+FLAGS = -I./
 
-BMinorParser: tokenize.l grammars.y
+BMinorParser: tokenize.l grammars.y ast.c
 	bison -d --report=all grammars.y
 	flex -o tokenize.lex.c tokenize.l
-	gcc -o $@ grammars.tab.c tokenize.lex.c -lfl 
+	gcc -o $@ ${FLAGS} grammars.tab.c tokenize.lex.c ast.c -lfl 
+
+
+
 
 clean:
 	rm -rf *.o

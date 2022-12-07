@@ -10,6 +10,11 @@ demo3: integer = 14;
 
 main: function void() = {
     x = x * 2;  
+    if(x == y) {
+        print y;
+    }else{
+        print x[0];
+    }
 }
 
 main2: function void(x: integer, y: void) = {
@@ -22,4 +27,8 @@ main2: function void(x: integer, y: void) = {
     for(i=1; i < y+1; ++i){
         --x;
     }
+    main(x);
 }
+
+demo4: boolean = 0;
+demo5: string = "hello world!";
