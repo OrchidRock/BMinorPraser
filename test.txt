@@ -1,0 +1,25 @@
+demo0: integer;
+demo1: integer = 12;
+demo2: integer = 12;
+computer: function integer(x:integer) = {
+    y: integer = 3;
+    x = x + 1;
+    return x * 2;
+}
+demo3: integer = 14;
+
+main: function void() = {
+    x = x * 2;  
+}
+
+main2: function void(x: integer, y: void) = {
+    x = x * 2;
+    print x;
+    if(x == y) {
+        print y;
+    }
+    
+    for(i=1; i < y+1; ++i){
+        --x;
+    }
+}
