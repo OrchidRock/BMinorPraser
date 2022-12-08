@@ -1,6 +1,8 @@
 %{
 #include "ast.h"
 #include "grammars.tab.h"
+
+int lineno = 0;  /* 行号*/
 %}
 
 %%
@@ -29,7 +31,7 @@
 "integer"   { return TOKEN_INTEGER; }
 "void"      { return TOKEN_VOID; }
 "boolean"   { return TOKEN_BOOL;}
-"char"      { return TOKEN_CHAR;}
+"char"      { return TOKEN_TYPE_CHAR;}
 "string"    { return TOKEN_TYPE_STRING;}
 "array"     { return TOKEN_ARRAY;}
 "function"  { return TOKEN_FUNC;}
@@ -38,11 +40,15 @@
 "if"        { return TOKEN_IF; }
 "else"      { return TOKEN_ELSE;}
 "for"        { return TOKEN_FOR; }
+"true"      {return TOKEN_BOOL_TRUE;}
+"false"     {return TOKEN_BOOL_FALSE;}
 
-\".*\"      {yylval.name = yytext; return TOKEN_STRING;}
+\'.\'      {yylval.name = (char*)((int)yytext[1]);return TOKEN_NUMBER;}
+\".*\"      {yylval.name = strcopy(yytext); return TOKEN_STRING;}
 [0-9]+      { yylval.name = (char*)atoi(yytext); return TOKEN_NUMBER;}
 [A-Za-z][0-9A-Za-z_]*  {yylval.name = strcopy(yytext); return TOKEN_NAME;}
 [ \t]+       {}
+[\r]?\n       {lineno++;}
 .           { printf("Invaild Token: %c\n", *yytext);}
 
 %%

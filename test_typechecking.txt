@@ -1,20 +1,24 @@
+x: char = 'a';
 demo0: integer;
-demo1: integer = 12;
-demo2: integer = 12;
+demo1: integer = "123";
+demo2: integer = 12 + "a";
 computer: function integer(x:integer) = {
     y: integer = 3;
     x = x + 1;
+    z = x + 1;
     return x * 2;
 }
 demo3: integer = 14;
 
 main: function void() = {
-    x = x * 2;  
-    if(x == y) {
+    x = x * 245;
+    y[0] = 123; 
+    if(x + y) {
         print y;
     }else{
         print x[0];
     }
+    main2(x, y);
 }
 
 main2: function void(x: integer, y: void) = {
@@ -31,4 +35,6 @@ main2: function void(x: integer, y: void) = {
 }
 
 demo4: boolean = 0;
+demo6: boolean = false;
+demo6: boolean = true;
 demo5: string = "hello world!";

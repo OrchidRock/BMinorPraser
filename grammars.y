@@ -1,17 +1,12 @@
 %{
-#include<stdio.h>
 #include "ast.h"
-
-extern int yyparse();
-
 struct decl* parser_result = NULL;
-
 %}
 
 /* Keyword */
 %token TOKEN_IF TOKEN_ELSE TOKEN_FOR TOKEN_RETURN TOKEN_PRINT 
-%token TOKEN_BOOL TOKEN_INTEGER TOKEN_CHAR TOKEN_TYPE_STRING TOKEN_ARRAY TOKEN_VOID
-%token TOKEN_FUNC 
+%token TOKEN_BOOL TOKEN_INTEGER TOKEN_TYPE_CHAR TOKEN_TYPE_STRING TOKEN_ARRAY TOKEN_VOID
+%token TOKEN_FUNC TOKEN_BOOL_TRUE TOKEN_BOOL_FALSE 
 
 /* Delimiter */
 %token TOKEN_COLON TOKEN_SEMI TOKEN_LPAREN TOKEN_RPAREN
@@ -27,7 +22,7 @@ struct decl* parser_result = NULL;
 %token TOKEN_INC TOKEN_DEC
 
 /* literal*/
-%token TOKEN_NUMBER TOKEN_STRING TOKEN_NAME
+%token TOKEN_NUMBER TOKEN_STRING TOKEN_NAME TOKEN_CHAR
 
 
 %union {
@@ -50,7 +45,7 @@ struct decl* parser_result = NULL;
 %%
 
 program: decl_list 
-        { printf("program accept.\n"); parser_result = $1; decl_destory(parser_result); }
+        { parser_result = $1;}
     ;
     
 decl_list:decl  {$$ = $1; }
@@ -73,7 +68,7 @@ type: TOKEN_BOOL
         {$$ = type_create(TYPE_BOOLEAN, NULL, NULL);}
     | TOKEN_INTEGER
         {$$ = type_create(TYPE_INTEGER, NULL, NULL);}
-    | TOKEN_CHAR
+    | TOKEN_TYPE_CHAR
         {$$ = type_create(TYPE_CHARACTER, NULL, NULL);}
     | TOKEN_TYPE_STRING
         {$$ = type_create(TYPE_STRING, NULL, NULL);}
@@ -124,7 +119,8 @@ small_stmt: TOKEN_RETURN expr TOKEN_SEMI
 //    ;
 
 expr: expr_or {$$ = $1;}
-    | expr_name TOKEN_ASSIGN expr_or
+    //| expr_name TOKEN_ASSIGN expr_or
+    | expr_trailer TOKEN_ASSIGN expr_or
         {$$ = expr_create(EXPR_ASSIGN, $1, $3);}
     ;
 
@@ -206,6 +202,12 @@ expr_atom: expr_name {$$ = $1;}
     | expr_number {$$ = $1;}
     | TOKEN_STRING 
         {$$ = expr_create_string(yylval.name);}
+    | TOKEN_CHAR
+        {$$ = expr_create_number((int)yylval.name);}
+    | TOKEN_BOOL_TRUE
+        {$$ = expr_create_number(1);}
+    | TOKEN_BOOL_FALSE
+        {$$ = expr_create_number(0);}
     ;
 
 expr_name: TOKEN_NAME
@@ -218,16 +220,3 @@ expr_number: TOKEN_NUMBER
 
 %%
 
-
-
-void main(){
-    if(yyparse() == 0){
-        printf("Parse successful!\n");
-    } else {
-        printf("Parse failed.\n");
-    }
-}
-
-void yyerror(char* s){
-    printf("error: %s\n", s);
-}
