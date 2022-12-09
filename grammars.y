@@ -100,8 +100,8 @@ simple_stmt: small_stmt {$$ = $1;}
 
 small_stmt: TOKEN_RETURN expr TOKEN_SEMI
             {$$ = stmt_create(STMT_RETURN, NULL, NULL, $2, NULL, NULL, NULL, NULL);} 
-    | TOKEN_PRINT expr TOKEN_SEMI
-        {$$ = stmt_create(STMT_PRINT, NULL, NULL, $2, NULL, NULL, NULL, NULL);}     
+    | TOKEN_PRINT expr TOKEN_COMMA expr TOKEN_SEMI
+        {$$ = stmt_create(STMT_PRINT, NULL, NULL, $2, $4, NULL, NULL, NULL);}     
     | TOKEN_IF TOKEN_LPAREN expr TOKEN_RPAREN stmt_suite
         {$$ = stmt_create(STMT_IF_ELSE, NULL, NULL, $3, NULL, $5, NULL, NULL);}     
     | TOKEN_IF TOKEN_LPAREN expr TOKEN_RPAREN stmt_suite TOKEN_ELSE stmt_suite 

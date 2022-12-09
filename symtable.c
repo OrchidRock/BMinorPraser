@@ -2,6 +2,8 @@
 #include<uthash.h>
 
 #include "symtable.h"
+#include "ast.h"
+
 
 static  int curr_scope_level = 1; /* Default: GLOBAL level.*/
 
@@ -30,6 +32,8 @@ static void hashtable_destory(struct SymbolHashTable* head){
         symbol_destory(current->symbol);
         free(current);
     }
+    //printf("hashtable len: %d after destory scope %d.\n", HASH_COUNT(head),
+    //                curr_scope_level);
 }
 
 struct symbol * symbol_create(symbol_t kind, 
@@ -39,7 +43,7 @@ struct symbol * symbol_create(symbol_t kind,
     new_symbol->kind = kind;
     new_symbol->type = type;
     new_symbol->name = name;
-    
+    //new_symbol->which = which;
     return new_symbol;
 }
 
@@ -58,6 +62,8 @@ void scope_enter(){
     new_scope->symbol_table = NULL;
     new_scope->next = scope_stack;
     scope_stack = new_scope;
+
+    //printf("****  %s %d\n", __func__, curr_scope_level);
 }
 
 void scope_exit(){
@@ -69,7 +75,8 @@ void scope_exit(){
     scope_stack = new_stack_top;
 
     curr_scope_level = curr_scope_level - 1;
-
+    
+    //printf("**** %s %d\n", __func__, curr_scope_level+1);
 }
 
 int scope_level(){
@@ -82,9 +89,12 @@ void scope_bind(const char *name, struct symbol *sym){
         scope_stack->symbol_table = NULL; 
         scope_stack->next = NULL;
     }
-    
-    if(scope_lookup(name)){
+
+    if(scope_stack->symbol_table && scope_lookup_current(name)){
         printf("error: '%s' has been declared.\n", name);
+        
+        /*Note: don't forget to free the symbol object.*/
+        free(sym);
         return;
     }
 
@@ -93,18 +103,21 @@ void scope_bind(const char *name, struct symbol *sym){
     new_item->symbol = sym;
     HASH_ADD_STR(scope_stack->symbol_table, name, new_item);
     
-     
-    //printf("Add new item [%s] into level %d (%d).\n",
-    //                name,
-    //                curr_scope_level, 
-    //                HASH_COUNT(scope_stack->symbol_table));
+    new_item->symbol->which = HASH_COUNT(scope_stack->symbol_table);
+    //printf("%s %s which: %d\n", __func__, name, new_item->symbol->which);    
+    /*
+    printf("Add new item [%s](which: %d) into level %d (%d).\n",
+                    name,
+                    sym->which,
+                    curr_scope_level, 
+                    HASH_COUNT(scope_stack->symbol_table));
+    */
 }
 
 struct symbol* scope_lookup(const char* name){
-    struct ScopeStackNode* current = scope_stack;
-    
     struct SymbolHashTable* target_item = NULL;
-
+    struct ScopeStackNode* current = scope_stack; 
+    
     while(current){
         HASH_FIND_STR(current->symbol_table, name, target_item);
         if(target_item){
@@ -120,6 +133,40 @@ struct symbol* scope_lookup(const char* name){
     }
 }
 
-struct symbol* scope_loopup_current(const char* name){
+struct symbol* scope_lookup_current(const char* name){
+    struct SymbolHashTable* target_item = NULL;
+    struct ScopeStackNode* current = scope_stack; 
+    HASH_FIND_STR(current->symbol_table, name, target_item);
+    if(target_item){
+        return target_item->symbol;
+    }
     return NULL;
+}
+
+
+const char* symbol_asmgen(struct symbol* sym){
+    static char bp_index_temp[20] = {0};
+    memset(bp_index_temp,0, sizeof(bp_index_temp));
+    if(sym->kind == SYMBOL_GLOBAL){
+        if(sym->type->kind == TYPE_FUNCTION){
+            return sym->name;
+        }else{
+            snprintf(bp_index_temp,sizeof(bp_index_temp), "%s(%%rip)", sym->name);
+        }
+        //printf("%s(%%rip)", sym->name);
+        //return sym->name;
+    }
+    else{
+        int shift = sym->which * sizeof(long);
+        snprintf(bp_index_temp, sizeof(bp_index_temp), "-%d(%%rbp)", shift);
+        //printf("-%d(%%rbp)", shift);
+    }
+    return bp_index_temp;
+}
+
+
+int scope_items_count(){
+    if(scope_stack == NULL) return 0;
+    if(scope_stack->symbol_table == NULL) return 0;
+    return HASH_COUNT(scope_stack->symbol_table);
 }

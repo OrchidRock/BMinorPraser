@@ -16,9 +16,8 @@ int main(int argc, char* argv[]){
         yyin = fp;
     }
     if(yyparse() == 0){
-        printf("Parse successful!\n");
     } else {
-        printf("Parse failed.\n");
+        fprintf(stderr,"Parse failed.\n");
     }
 
     if(fp != NULL){

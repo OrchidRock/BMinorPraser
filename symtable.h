@@ -23,12 +23,16 @@ struct symbol * symbol_create(symbol_t kind,
                 char* name);
 void symbol_destory(struct symbol*);
 
+const char* symbol_asmgen(struct symbol*);
+
 void scope_enter();
 void scope_exit();
 int scope_level();
 
 void scope_bind(const char *name, struct symbol *sym);
 struct symbol* scope_lookup(const char* name);
-struct symbol* scope_loopup_current(const char* name);
+struct symbol* scope_lookup_current(const char* name);
+int scope_items_count();
+
 
 #endif /* __SYMTABLE_H__ */

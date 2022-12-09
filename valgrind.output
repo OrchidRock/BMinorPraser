@@ -1,0 +1,44 @@
+==99001== Memcheck, a memory error detector
+==99001== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==99001== Using Valgrind-3.15.0 and LibVEX; rerun with -h for copyright info
+==99001== Command: ./BMinorParser test_function.txt
+==99001== Parent PID: 96469
+==99001== 
+==99001== 
+==99001== HEAP SUMMARY:
+==99001==     in use at exit: 16,458 bytes in 3 blocks
+==99001==   total heap usage: 309 allocs, 306 frees, 35,176 bytes allocated
+==99001== 
+==99001== 8 bytes in 1 blocks are still reachable in loss record 1 of 3
+==99001==    at 0x483B7F3: malloc (in /usr/lib/x86_64-linux-gnu/valgrind/vgpreload_memcheck-amd64-linux.so)
+==99001==    by 0x10C880: yyalloc (tokenize.lex.c:1983)
+==99001==    by 0x10C349: yyensure_buffer_stack (tokenize.lex.c:1681)
+==99001==    by 0x10A9DE: yylex (tokenize.lex.c:726)
+==99001==    by 0x1097B6: yyparse (grammars.tab.c:1384)
+==99001==    by 0x110C64: main (main.c:18)
+==99001== 
+==99001== 64 bytes in 1 blocks are still reachable in loss record 2 of 3
+==99001==    at 0x483B7F3: malloc (in /usr/lib/x86_64-linux-gnu/valgrind/vgpreload_memcheck-amd64-linux.so)
+==99001==    by 0x10C880: yyalloc (tokenize.lex.c:1983)
+==99001==    by 0x10BEBE: yy_create_buffer (tokenize.lex.c:1521)
+==99001==    by 0x10AA08: yylex (tokenize.lex.c:728)
+==99001==    by 0x1097B6: yyparse (grammars.tab.c:1384)
+==99001==    by 0x110C64: main (main.c:18)
+==99001== 
+==99001== 16,386 bytes in 1 blocks are still reachable in loss record 3 of 3
+==99001==    at 0x483B7F3: malloc (in /usr/lib/x86_64-linux-gnu/valgrind/vgpreload_memcheck-amd64-linux.so)
+==99001==    by 0x10C880: yyalloc (tokenize.lex.c:1983)
+==99001==    by 0x10BEF3: yy_create_buffer (tokenize.lex.c:1530)
+==99001==    by 0x10AA08: yylex (tokenize.lex.c:728)
+==99001==    by 0x1097B6: yyparse (grammars.tab.c:1384)
+==99001==    by 0x110C64: main (main.c:18)
+==99001== 
+==99001== LEAK SUMMARY:
+==99001==    definitely lost: 0 bytes in 0 blocks
+==99001==    indirectly lost: 0 bytes in 0 blocks
+==99001==      possibly lost: 0 bytes in 0 blocks
+==99001==    still reachable: 16,458 bytes in 3 blocks
+==99001==         suppressed: 0 bytes in 0 blocks
+==99001== 
+==99001== For lists of detected and suppressed errors, rerun with: -s
+==99001== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

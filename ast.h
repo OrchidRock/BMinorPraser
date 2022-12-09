@@ -78,6 +78,7 @@ struct expr {
     int integer_value;
     const char * string_literal;
     struct symbol* symbol;
+    int reg;
 };
 
 
@@ -106,6 +107,8 @@ void decl_resolve(struct decl *d);
 void expr_resolve(struct expr *e);
 void stmt_resolve(struct stmt* s);
 void param_list_resolve(struct param_list* pl);
+
+void expr_print_to_fd(struct expr*, FILE*);
 
 char* strcopy(const char* name);
 #endif // __AST_H__

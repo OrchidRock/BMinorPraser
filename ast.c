@@ -4,6 +4,7 @@
 #include<stdbool.h>
 
 #include "ast.h"
+#include "asmgen_x86_64.h"
 
 static void type_destory(struct type*);
 static void param_list_destory(struct param_list*);
@@ -15,11 +16,11 @@ static struct type* expr_typecheck(struct expr*);
 static void decl_typecheck(struct decl*);
 static void stmt_typecheck(struct stmt*);
 static bool type_equal(struct type*, struct type*);
+static bool call_type_equal(struct param_list*, struct expr* args);
 
 /* print */
 static void type_print(struct type*);
-static void expr_print(struct expr*);
-
+void expr_print(struct expr*);
 
 struct decl* decl_create(char* name,
                         struct type* type,
@@ -68,15 +69,18 @@ void decl_resolve(struct decl *d){
     
     scope_bind(d->name, d->symbol);
 
+    decl_typecheck(d); /**/
+    
+    decl_asmgen(d);
+
     if(d->code) { /* function */
         scope_enter();
         param_list_resolve(d->type->params);
+        stmt_asmgen(d->code);
         stmt_resolve(d->code);
         scope_exit();
     }
-    
-    decl_typecheck(d); /**/
-    
+     
     decl_resolve(d->next);
 }
 
@@ -87,11 +91,11 @@ static void decl_typecheck(struct decl* target_decl){
         struct type* t;
         t = expr_typecheck(target_decl->value);
         if(!type_equal(t, target_decl->symbol->type)){
-            printf("error: "); 
+            fprintf(stderr, "error: "); 
             expr_print(target_decl->value),
-            printf("cann't be declared to type:"); 
+            fprintf(stderr,"cann't be declared to type:"); 
             type_print(target_decl->symbol->type);
-            printf(".\n"); 
+            fprintf(stderr, ".\n"); 
         }
         type_destory(t);
     }
@@ -129,14 +133,14 @@ static void type_destory(struct type* target_type){
 static void type_print(struct type* target_type){
     if(target_type == NULL) return;
     switch(target_type->kind){
-        case TYPE_VOID: printf(" void "); break;
-        case TYPE_ARRAY: printf(" array "); break;
-        case TYPE_STRING: printf(" string "); break;
-        case TYPE_BOOLEAN: printf(" boolean "); break;
-        case TYPE_INTEGER: printf(" integer "); break;
-        case TYPE_FUNCTION: printf(" function "); break;
-        case TYPE_CHARACTER: printf(" char "); break;
-        default: printf(" UNKNOWN "); break;
+        case TYPE_VOID: fprintf(stderr," void "); break;
+        case TYPE_ARRAY: fprintf(stderr," array "); break;
+        case TYPE_STRING: fprintf(stderr," string "); break;
+        case TYPE_BOOLEAN: fprintf(stderr," boolean "); break;
+        case TYPE_INTEGER: fprintf(stderr," integer "); break;
+        case TYPE_FUNCTION: fprintf(stderr," function "); break;
+        case TYPE_CHARACTER: fprintf(stderr," char "); break;
+        default: fprintf(stderr," UNKNOWN "); break;
     }
 }
 
@@ -209,25 +213,36 @@ static void stmt_destory(struct stmt* target_stmt){
 }
 void stmt_resolve(struct stmt* target_stmt){
     if(target_stmt == NULL) return;
-
     decl_resolve(target_stmt->decl);
     
     expr_resolve(target_stmt->init_expr);
     expr_resolve(target_stmt->expr);
     expr_resolve(target_stmt->next_expr);
 
+    stmt_typecheck(target_stmt);
+    
     if(target_stmt->body){
-        scope_enter();
-        stmt_resolve(target_stmt->body);
-        scope_exit();
+        if(!target_stmt->expr){
+            stmt_resolve(target_stmt->body);
+        }else{    
+            scope_enter();
+            stmt_asmgen(target_stmt);   
+            stmt_resolve(target_stmt->body);
+            stmt_asmgen_block_done(target_stmt, 1);
+            scope_exit();
+        }
+    }else{
+        stmt_asmgen(target_stmt);
     }
+    
+    
     if(target_stmt->else_body){
         scope_enter();
         stmt_resolve(target_stmt->else_body);
+        stmt_asmgen_block_done(target_stmt, 2);
         scope_exit();
     }
     
-    stmt_typecheck(target_stmt);
 
     stmt_resolve(target_stmt->next);
 }
@@ -244,10 +259,10 @@ void stmt_typecheck(struct stmt *target_stmt){
             case STMT_FOR:
                 t = expr_typecheck(target_stmt->expr);
                 if(t->kind != TYPE_BOOLEAN){
-                    printf("error: ");
+                    fprintf(stderr, "error: ");
                     type_print(t);
                     expr_print(target_stmt->expr);
-                    printf("isn't a boolean expression at for stmt.\n");
+                    fprintf(stderr, "isn't a boolean expression at for stmt.\n");
                 }   
                 type_destory(t);
                 
@@ -256,7 +271,7 @@ void stmt_typecheck(struct stmt *target_stmt){
                 t = expr_typecheck(target_stmt->next_expr);
                 type_destory(t);
                 
-                stmt_typecheck(target_stmt->body); 
+                //stmt_typecheck(target_stmt->body); 
 
                 break;
             case STMT_RETURN:
@@ -266,17 +281,17 @@ void stmt_typecheck(struct stmt *target_stmt){
             case STMT_IF_ELSE:
                 t = expr_typecheck(target_stmt->expr);
                 if(t->kind != TYPE_BOOLEAN){
-                    printf("error:");
+                    fprintf(stderr, "error:");
                     type_print(t);
                     expr_print(target_stmt->expr);
-                    printf("isn't a boolean expression at if_else stmt.\n");
+                    fprintf(stderr,"isn't a boolean expression at if_else stmt.\n");
                 }   
                 type_destory(t);
-                stmt_typecheck(target_stmt->body);
-                stmt_typecheck(target_stmt->else_body);
+                //stmt_typecheck(target_stmt->body);
+                //stmt_typecheck(target_stmt->else_body);
                 break;
             case STMT_BLOCK:
-                stmt_typecheck(target_stmt->body);
+                //stmt_typecheck(target_stmt->body);
                 break;
             default:
                 break;
@@ -298,9 +313,15 @@ struct expr* expr_create(expr_t kind, struct expr* left,
     new_expr->string_literal = NULL;
     new_expr->integer_value = 0;
     new_expr->symbol = NULL;
-
-    //printf("%s: done. kind: %d \n",__func__, kind); 
-    
+    new_expr->reg = -1;
+    /*
+    if(kind == EXPR_CALL){
+        printf("%s: done. kind: %d %d\n",__func__, kind,right->kind);
+    }else if(kind == EXPR_ARG){
+        printf("%s: done. kind: %d \n",__func__, kind);
+    }else if(kind == EXPR_ASSIGN){
+        printf("%s: done. kind: %d \n",__func__, kind);
+    }*/
     return new_expr;
 }
 
@@ -323,7 +344,7 @@ struct expr* expr_create_number(int number){
 
 struct expr* expr_create_string(char* str){
     struct expr* new_expr = expr_create(EXPR_STRING, NULL, NULL);
-    new_expr->string_literal = strcopy(str);
+    new_expr->string_literal = str;
     
     //printf("%s: done. string: %s \n",__func__, str); 
     
@@ -358,13 +379,13 @@ void expr_resolve(struct expr* e){
             //printf("Find Symbol [%s] has type [%d]. \n", e->symbol->name,
             //                e->symbol->type->kind);
         }else{
-            printf("error: symbol '%s' hasn't been declared.\n", e->name);
+            fprintf(stderr, "error: symbol '%s' hasn't been declared.\n", e->name);
         }
     } else {
         expr_resolve(e->left);
         expr_resolve(e->right);       
     }
-
+    //expr_asmgen(e);
     //expr_typecheck(e);
 }
 
@@ -372,6 +393,7 @@ void expr_resolve(struct expr* e){
 bool type_equal(struct type *a, struct type *b){
     if(a == NULL || b == NULL) {
         fprintf(stderr, "%s error type  is null\n", __func__);
+        return false;
     }
     if(a->kind == b->kind){
         if(a->kind == TYPE_ARRAY){
@@ -398,12 +420,18 @@ bool type_equal(struct type *a, struct type *b){
         }else{
             return true;
         }
-    }else if(a->kind == TYPE_CHARACTER && b->kind == TYPE_INTEGER ||
-             a->kind == TYPE_INTEGER && b->kind == TYPE_CHARACTER){
+    }else if((a->kind == TYPE_CHARACTER && b->kind == TYPE_INTEGER) ||
+             (a->kind == TYPE_INTEGER && b->kind == TYPE_CHARACTER)){
         return true;
     }else{
         return false;
     }
+
+    return false;
+}
+
+bool call_type_equal(struct param_list* pl, struct expr* args){
+    return true;    
 }
 
 struct type* expr_typecheck(struct expr *target_expr){
@@ -423,15 +451,35 @@ struct type* expr_typecheck(struct expr *target_expr){
             break;
         case EXPR_NAME:
             if(target_expr->symbol){
-                result = type_create(target_expr->symbol->type->kind,NULL, NULL);
+                if(target_expr->symbol->type->kind != TYPE_FUNCTION){
+                    result = type_create(target_expr->symbol->type->kind,NULL, NULL);
+                }else{
+                    result = type_create(target_expr->symbol->type->subtype->kind,NULL,
+                                    NULL);
+                }
             }else{
                 result = type_create(TYPE_VOID, NULL, NULL);
             }
             break;
         case EXPR_CHAR:
             result = type_create(TYPE_CHARACTER, NULL, NULL);
-            break; 
+            break;
+        
+        case EXPR_ARG:
+            result = NULL;
+            break;
         case EXPR_CALL:
+            //target_expr->name
+            if(!call_type_equal(target_expr->left->symbol->type->params, target_expr->right)){
+                fprintf(stderr,"error: cannot call ");
+                type_print(lt);
+                expr_print(target_expr->left);
+                fprintf(stderr,"with ");
+                type_print(rt);
+                expr_print(target_expr->right);
+                fprintf(stderr,".\n");     
+            }
+            result = type_create(lt->kind, NULL, NULL);
             break;
         
         case EXPR_SUBCRIPT:
@@ -446,24 +494,24 @@ struct type* expr_typecheck(struct expr *target_expr){
         case EXPR_MUL:
         case EXPR_ADD:
             if(lt->kind != TYPE_INTEGER || rt->kind != TYPE_INTEGER){
-                printf("error: cannot (+|-|*|/|%%) a");
+                fprintf(stderr, "error: cannot (+|-|*|/|%%) a");
                 type_print(lt);
                 expr_print(target_expr->left);
-                printf("to a");
+                fprintf(stderr, "to a");
                 type_print(rt);
                 expr_print(target_expr->right);
-                printf(".\n");
+                fprintf(stderr, ".\n");
             }
             result = type_create(TYPE_INTEGER, NULL, NULL);
             break;
         
         case EXPR_ASSIGN:
             if(!type_equal(lt, rt)){
-                printf("error: cannot assign a ");
+                fprintf(stderr,"error: cannot assign a ");
                 type_print(rt);
-                printf("to");
+                fprintf(stderr,"to");
                 expr_print(target_expr->left);
-                printf(".\n");
+                fprintf(stderr,".\n");
             }
             result = type_create(lt->kind, NULL, NULL);
             break;
@@ -475,13 +523,13 @@ struct type* expr_typecheck(struct expr *target_expr){
         case EXPR_EQUAL:
         case EXPR_NOTEQUAL:
             if(!type_equal(lt, rt)){
-                printf("error: cannot compare a");
+                fprintf(stderr,"error: cannot compare a");
                 type_print(lt);
                 expr_print(target_expr->left);
-                printf("to an");
+                fprintf(stderr,"to an");
                 type_print(rt);
                 expr_print(target_expr->right);
-                printf(".\n");     
+                fprintf(stderr,".\n");     
             }
             if(lt->kind  == TYPE_VOID ||
                 lt->kind == TYPE_ARRAY ||
@@ -491,6 +539,7 @@ struct type* expr_typecheck(struct expr *target_expr){
             result = type_create(TYPE_BOOLEAN, NULL, NULL);
             break;
         default:
+            result = NULL;
             break;
     }
 
@@ -503,22 +552,27 @@ struct type* expr_typecheck(struct expr *target_expr){
 
 
 void expr_print(struct expr* target_expr){
+    expr_print_to_fd(target_expr, stderr);
+}
+
+void expr_print_to_fd(struct expr* target_expr, FILE* fd){
     if(target_expr == NULL) return;
     
     switch(target_expr->kind){
-        case EXPR_NAME: printf(" %s ", target_expr->name); break;
-        case EXPR_NUMBER: printf(" %d ", target_expr->integer_value); break;
-        case EXPR_STRING: printf(" %s ", target_expr->string_literal); break;
+        case EXPR_NAME: fprintf(fd," %s ", target_expr->name); break;
+        case EXPR_NUMBER: fprintf(fd," %d ", target_expr->integer_value); break;
+        case EXPR_STRING: fprintf(fd," %s ", target_expr->string_literal); break;
         case EXPR_ADD:
                 expr_print(target_expr->left);
-                printf(" + "); 
+                fprintf(fd," + "); 
                 expr_print(target_expr->right);
                 break;
-        case EXPR_MUL: printf("-"); break;
+        case EXPR_MUL: fprintf(fd," * "); break;
+        case EXPR_MINUS: fprintf(fd," - "); break;
         case EXPR_SUBCRIPT:
-            printf(" [] ");
+            fprintf(fd," [] ");
             break;
-        default: printf(" expr "); break;
+        default: fprintf(fd," expr "); break;
     }
 }
 
@@ -527,10 +581,13 @@ char* strcopy(const char* name){
         return NULL;
     }
     size_t len = strlen(name);
-    char* new_str = malloc(sizeof(char) *len);
+    char* new_str = malloc(sizeof(char) *(len+1));
     strncpy(new_str, name, len);
+    new_str[len] = '\0';
 
     return new_str;
 }
+
+
 
 

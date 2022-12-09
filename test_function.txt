@@ -1,0 +1,37 @@
+format: string = "%d\n";
+i: integer = 10;
+s: string = "hello";
+p: char = 'a';
+q: integer = 9;
+computer: function integer(x:integer, y:integer) = {
+    i: integer = 33;
+    total: integer = q;
+    a: integer = q + 1;
+    print format, a;
+    for(i=0;i<10;++i){
+        total = total + 1;
+    }
+
+    print format, total;
+    x = (a+10) * (q+10);
+    print format, x;
+    return x;
+}
+
+computer2: function integer(a:integer, b:integer, c:integer) = {
+    x: integer = a + b + c;
+    y: integer = x + 5;
+    if(y>5){
+        print format, x;
+    }else{
+        print format, y;
+    }
+    y = computer(x, a);
+    print format, y;
+    return y;
+}
+
+main: function void() = {
+    q = computer2(1, 2, 3);
+    print format, q;
+}

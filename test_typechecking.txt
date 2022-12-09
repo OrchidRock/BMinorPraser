@@ -1,3 +1,4 @@
+format: string = "%d\n";
 x: char = 'a';
 demo0: integer;
 demo1: integer = "123";
@@ -14,18 +15,17 @@ main: function void() = {
     x = x * 245;
     y[0] = 123; 
     if(x + y) {
-        print y;
+        print format, y;
     }else{
-        print x[0];
+        print format, x[0];
     }
     main2(x, y);
 }
 
 main2: function void(x: integer, y: void) = {
     x = x * 2;
-    print x;
     if(x == y) {
-        print y;
+        print format,y;
     }
     
     for(i=1; i < y+1; ++i){
