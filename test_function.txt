@@ -1,3 +1,4 @@
+/* printf(format,...) */
 format: string = "%d\n";
 i: integer = 10;
 s: string = "hello";
@@ -11,7 +12,7 @@ computer: function integer(x:integer, y:integer) = {
     for(i=0;i<10;++i){
         total = total + 1;
     }
-
+    // test
     print format, total;
     x = (a+10) * (q+10);
     print format, x;

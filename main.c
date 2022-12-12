@@ -4,7 +4,7 @@
 #include "ast.h"
 
 extern int yyparse();
-extern int lineno;
+extern int yylineno;
 extern struct decl* parser_result;
 
 extern FILE* yyin;
@@ -37,5 +37,5 @@ int main(int argc, char* argv[]){
 }
 
 void yyerror(char* s){
-    fprintf(stderr, "error: %s, at line: %d\n", s, lineno+1);
+    fprintf(stderr, "error: %s, at line: %d\n", s, yylineno);
 }

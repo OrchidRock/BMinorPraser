@@ -2,8 +2,12 @@
 #include "ast.h"
 #include "grammars.tab.h"
 
-int lineno = 0;  /* 行号*/
 %}
+
+%option noyywrap yylineno
+
+%x COMMENT
+%x IFILE
 
 %%
 
@@ -43,12 +47,21 @@ int lineno = 0;  /* 行号*/
 "true"      {return TOKEN_BOOL_TRUE;}
 "false"     {return TOKEN_BOOL_FALSE;}
 
+"//".*\n
+"/*"        {BEGIN(COMMENT);}
+<COMMENT>"*/"   {BEGIN(INITIAL);}
+<COMMENT>([^*]|\n)+|.
+<COMMENT><<EOF>>    {return 0;}
+
 \'.\'      {yylval.name = (char*)((int)yytext[1]);return TOKEN_NUMBER;}
 \".*\"      {yylval.name = strcopy(yytext); return TOKEN_STRING;}
-[0-9]+      { yylval.name = (char*)atoi(yytext); return TOKEN_NUMBER;}
-[A-Za-z][0-9A-Za-z_]*  {yylval.name = strcopy(yytext); return TOKEN_NAME;}
+
+0[0-7]* |
+0[Xx][0-9a-fA-F]+ |
+[1-9][0-9]*      { yylval.name = (char*)atoi(yytext); return TOKEN_NUMBER;}
+
+[_A-Za-z][_A-Za-z0-9]*  {yylval.name = strcopy(yytext); return TOKEN_NAME;}
 [ \t]+       {}
-[\r]?\n       {lineno++;}
 .           { printf("Invaild Token: %c\n", *yytext);}
 
 %%
