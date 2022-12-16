@@ -65,7 +65,7 @@ static void scratch_free(int r){
 void expr_asmgen(struct expr* target_expr){
     if(target_expr == NULL) return ;
     
-    int else_label, done_label, top_label;
+    int else_label, done_label;
     
     static int expr_arg_index = 0; 
     switch(target_expr->kind){
@@ -79,7 +79,8 @@ void expr_asmgen(struct expr* target_expr){
         case EXPR_NUMBER:
             target_expr->reg = scratch_alloc();
             printf("    MOVQ $%d, %s\n", target_expr->integer_value,
-                            scratch_name(target_expr->reg));
+                           scratch_name(target_expr->reg));
+            //printf("%d", target_expr->integer_value);
 
             break;
 
@@ -88,16 +89,27 @@ void expr_asmgen(struct expr* target_expr){
             break;
         
         case EXPR_MOD:
+                expr_asmgen(target_expr->left);
+                expr_asmgen(target_expr->right);
+                printf("    MOVQ %s, %%rax\n", scratch_name(target_expr->left->reg));
+                printf("    IDIVQ %s\n", scratch_name(target_expr->right->reg));
+                printf("    MOVQ %%rdx, %s\n", scratch_name(target_expr->left->reg));
+                target_expr->reg = target_expr->left->reg;
+                scratch_free(target_expr->right->reg);
+
+                break;
         case EXPR_DIV:
+                expr_asmgen(target_expr->left);
+                expr_asmgen(target_expr->right);
+                printf("    MOVQ %s, %%rax\n", scratch_name(target_expr->left->reg));
+                printf("    IDIV %s\n", scratch_name(target_expr->right->reg));
+                printf("    MOVQ %%rax, %s\n", scratch_name(target_expr->left->reg));
+                target_expr->reg = target_expr->left->reg;
+                scratch_free(target_expr->right->reg);
+
+                break;
+
         case EXPR_MUL:
-            if((target_expr->left && target_expr->left->kind == EXPR_NUMBER)&&
-                (target_expr->right && target_expr->right->kind == EXPR_NUMBER)){
-                /* partial execute. */
-                int result =  target_expr->left->integer_value *
-                        target_expr->right->integer_value;
-                
-                printf("%d", result);
-            }else{
                 expr_asmgen(target_expr->left);
                 expr_asmgen(target_expr->right);
                 printf("    MOVQ %s, %%rax\n", scratch_name(target_expr->right->reg));
@@ -105,46 +117,28 @@ void expr_asmgen(struct expr* target_expr){
                 printf("    MOVQ %%rax, %s\n", scratch_name(target_expr->right->reg));
                 target_expr->reg = target_expr->right->reg;
                 scratch_free(target_expr->left->reg);
-            }
 
-            break;
+                break;
             
         case EXPR_MINUS:
-            if((target_expr->left && target_expr->left->kind == EXPR_NUMBER)&&
-                (target_expr->right && target_expr->right->kind == EXPR_NUMBER)){
-                /* partial execute. */
-                int result =  target_expr->left->integer_value -
-                        target_expr->right->integer_value;
-                
-                printf("%d", result);
-            }else{
                 expr_asmgen(target_expr->left);
                 expr_asmgen(target_expr->right);
                 printf("    SUBQ %s, %s\n", scratch_name(target_expr->right->reg),
                             scratch_name(target_expr->left->reg));
                 target_expr->reg = target_expr->left->reg;
                 scratch_free(target_expr->right->reg);
-            }
 
-            break;
+                break;
         case EXPR_ADD:
-            if((target_expr->left && target_expr->left->kind == EXPR_NUMBER)&&
-                (target_expr->right && target_expr->right->kind == EXPR_NUMBER)){
-                /* partial execute. */
-                int result =  target_expr->left->integer_value + 
-                        target_expr->right->integer_value;
-                
-                printf("%d", result);
-            }else{
                 expr_asmgen(target_expr->left);
                 expr_asmgen(target_expr->right);
                 printf("    ADDQ %s, %s\n", scratch_name(target_expr->left->reg),
                             scratch_name(target_expr->right->reg));
                 target_expr->reg = target_expr->right->reg;
                 scratch_free(target_expr->left->reg);
-            }
 
-            break;
+                break;
+
         case EXPR_ASSIGN:
             expr_asmgen(target_expr->right);
             //expr_asmgen()
@@ -169,6 +163,22 @@ void expr_asmgen(struct expr* target_expr){
             printf("    MOVQ %%rax, %s\n", scratch_name(target_expr->reg));
             break;
         
+        case EXPR_NOTEQUAL:
+            expr_asmgen(target_expr->left);
+            expr_asmgen(target_expr->right);
+            done_label = label_create();
+            else_label = label_create();
+            printf("    CMPQ %s, %s\n", scratch_name(target_expr->left->reg), 
+                            scratch_name(target_expr->right->reg));
+            printf("    JNE %s\n", label_name(else_label)); /*true*/
+            printf("    MOVQ $0, %%rax\n");
+            printf("    JMP %s\n", label_name(done_label));
+            printf("%s:\n", label_name(else_label));
+            printf("    MOVQ $1, %%rax\n");
+            printf("%s:\n", label_name(done_label));
+            scratch_free(target_expr->left->reg);
+            scratch_free(target_expr->right->reg);
+            break;
         case EXPR_EQUAL:
             expr_asmgen(target_expr->left);
             expr_asmgen(target_expr->right);
@@ -265,12 +275,10 @@ void expr_asmgen(struct expr* target_expr){
 void decl_asmgen(struct decl* d){
     if(d == NULL) return;
     if(d->symbol == NULL) return;
-    
     type_t kind = d->symbol->type->kind;
     if(d->symbol->kind == SYMBOL_GLOBAL){
         printf(".globl %s\n", d->name);
     }else{ /* in the block, such as function|if_else|for. */
-
         return;
     }
 
@@ -305,28 +313,24 @@ void decl_asmgen(struct decl* d){
     }
 }
 
-void stmt_asmgen(struct stmt* st){
-    stmt_asmgen_block_done(st, 0);
-}
-void stmt_asmgen_block_done(struct stmt* st, int flag){
+void stmt_asmgen(struct stmt* st, struct type* tp){
     if(st == NULL) return;
     
-    int local_variable_count;
+    int local_variable_count, function_arg_count;
     struct decl* d = st->decl;
-    struct expr* expr_tmp;
-    int else_label, done_label, top_label;
     static int top_label_for, done_label_for;
     static int false_label_if, done_label_if;
+    static bool alloc_stack = false;
     switch(st->kind){
         case STMT_DECL:
+            expr_asmgen(d->value);
             if(d->value){
-                printf("    SUBQ $%ld, %%rsp\n", sizeof(long));
-                expr_asmgen(d->value);
                 printf("    MOVQ %s, %s\n", scratch_name(d->value->reg),
                     symbol_asmgen(d->symbol));
                 scratch_free(d->value->reg);
+            }else{
+                //
             }
-            //expr_asmgen(d->name);
             break;
         case STMT_EXPR:
                 if(st->expr){
@@ -335,58 +339,106 @@ void stmt_asmgen_block_done(struct stmt* st, int flag){
                 break;
         case STMT_BLOCK:
                 /* leaf ?*/
+                if(tp == NULL){
+                    stmt_asmgen(st->body, NULL);
+                    break;
+                }
                 local_variable_count = scope_items_count();
+                if(tp->params){
+                    function_arg_count = param_list_count(tp->params);
+                }else{
+                    function_arg_count = 0;
+                }
+
                 if(local_variable_count == 0){ // leaf
                     //
                 }else{
                     printf("    PUSHQ %%rbp\n");
                     printf("    MOVQ %%rsp, %%rbp\n");
                     printf("    SUBQ $%ld, %%rsp\n", sizeof(long)*local_variable_count);
+                    alloc_stack = true;
                     //printf("    SUBQ $32, %%rsp\n");
-                    for(int i=0; i<local_variable_count;i++){
+                    for(int i=0; i<function_arg_count;i++){
                         printf("    MOVQ %s, -%ld(%%rbp)\n", argument_args_table[i],
                                         (i+1)*sizeof(long));
                     }
                 }
+                stmt_asmgen(st->body, NULL);
+                alloc_stack = false; 
+                break;
+        case STMT_WHILE:
+                
+                printf("\n");
+                
+                top_label_for = label_create();
+                done_label_for = label_create();
+                printf("%s:\n", label_name(top_label_for)); 
+                
+                expr_asmgen(st->expr);
+                printf("    CMPQ $0, %%rax\n");
+                printf("    JE %s\n", label_name(done_label_for));
+                
+                if(st->body){
+                    stmt_asmgen(st->body, NULL);
+                }
+
+                printf("    JMP %s\n", label_name(top_label_for));
+                
+                printf("%s:\n", label_name(done_label_for));
                 break;
         case STMT_IF_ELSE:
-                if(flag == 0){
-                    false_label_if = label_create();
-                    done_label_if = label_create();
-                    printf("\n");
-                    expr_asmgen(st->expr);
-                    printf("    CMPQ $0, %%rax\n");
+                false_label_if = label_create();
+                done_label_if = label_create();
+                printf("\n");
+                expr_asmgen(st->expr);
+                printf("    CMPQ $0, %%rax\n");
+                if(st->else_body){
                     printf("    JE %s\n", label_name(false_label_if));
-                }else if(flag == 1){
+                }else{
+                    printf("    JE %s\n", label_name(done_label_if));
+                }
+                stmt_asmgen(st->body, NULL);
+                    
+                if(st->else_body){
                     printf("    JMP %s\n", label_name(done_label_if));
                     printf("%s:\n", label_name(false_label_if));
-                }else{
-                    printf("%s:\n", label_name(done_label_if));
-                }
-                //expr_asmgen(st->expr);
+                    stmt_asmgen(st->else_body, NULL);
+                } 
+
+                printf("%s:\n", label_name(done_label_if));
                 break;
         case STMT_FOR:
-                if(!flag){
-                    printf("\n");
-                    expr_asmgen(st->init_expr);
-                    top_label_for = label_create();
-                    done_label_for = label_create();
-                    printf("%s:\n", label_name(top_label_for)); 
-                    expr_asmgen(st->expr);
-                    printf("    CMPQ $0, %%rax\n");
-                    printf("    JE %s\n", label_name(done_label_for));
-                }else{
-                    expr_asmgen(st->next_expr);
-                    printf("    JMP %s\n", label_name(top_label_for));
-                    printf("%s:\n", label_name(done_label_for));
+                printf("\n");
+                expr_asmgen(st->init_expr);
+                top_label_for = label_create();
+                done_label_for = label_create();
+                printf("%s:\n", label_name(top_label_for)); 
+                expr_asmgen(st->expr);
+                printf("    CMPQ $0, %%rax\n");
+                printf("    JE %s\n", label_name(done_label_for));
+                
+                if(st->body){
+                    stmt_asmgen(st->body, NULL);
                 }
+                    
+                expr_asmgen(st->next_expr);
+                printf("    JMP %s\n", label_name(top_label_for));
+                
+                printf("%s:\n", label_name(done_label_for));
+
                 break;
         case STMT_RETURN:
-            expr_asmgen(st->expr);
-            printf("    MOVQ %s, %%rax\n", scratch_name(st->expr->reg));
-            printf("    leave\n");
-            printf("    RET\n", scratch_name(st->expr->reg));
-            scratch_free(st->expr->reg);
+            if(st->expr){
+                expr_asmgen(st->expr);
+                printf("    MOVQ %s, %%rax\n", scratch_name(st->expr->reg));
+                scratch_free(st->expr->reg);
+            }
+            if(alloc_stack){
+                printf("    leave\n");
+            }else{
+                //printf("    POPQ %%rbp\n");
+            }
+            printf("    RET\n");
             break;
         case STMT_PRINT:
             printf("    leaq ");
@@ -404,7 +456,7 @@ void stmt_asmgen_block_done(struct stmt* st, int flag){
               break;  
     }
 
-    //stmt_asmgen(st->next);
+    stmt_asmgen(st->next, NULL);
 }
 
 

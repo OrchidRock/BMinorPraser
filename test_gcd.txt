@@ -1,0 +1,25 @@
+format: string = "%d\n";
+gcd: function integer (a: integer, b: integer) = {
+    tmp: integer; 
+    
+    if(b == 0){ 
+        print format, a;
+    }
+    while(b != 0) {
+        print format, b;
+        tmp = a % b;
+        a = b;
+        b = tmp;
+    }
+
+    return a;
+}
+
+main: function void() = {
+    result: integer = 0;
+
+    result = gcd(20, 8);
+    print format, result;
+
+    return 0;  
+}

@@ -41,6 +41,7 @@ typedef enum {
     STMT_EXPR,
     STMT_IF_ELSE,
     STMT_FOR,
+    STMT_WHILE,
     STMT_PRINT,
     STMT_RETURN,
     STMT_BLOCK
@@ -101,6 +102,7 @@ struct expr* expr_create_char(int ch);
 
 struct type* type_create(type_t, struct type*, struct param_list*);
 struct param_list* param_list_create(char*, struct type*, struct param_list*);
+int param_list_count(struct param_list*);
 
 /* Name Reloluting. */
 void decl_resolve(struct decl *d);
@@ -110,5 +112,4 @@ void param_list_resolve(struct param_list* pl);
 
 void expr_print_to_fd(struct expr*, FILE*);
 
-char* strcopy(const char* name);
 #endif // __AST_H__

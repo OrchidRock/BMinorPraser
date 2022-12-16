@@ -1,20 +1,20 @@
 /* printf(format,...) */
 format: string = "%d\n";
-i: integer = 10;
+i: integer = 9+2;
 s: string = "hello";
 p: char = 'a';
 q: integer = 9;
 computer: function integer(x:integer, y:integer) = {
     i: integer = 33;
     total: integer = q;
-    a: integer = q + 1;
+    a: integer = q + 2 * 3;
     print format, a;
     for(i=0;i<10;++i){
         total = total + 1;
     }
     // test
     print format, total;
-    x = (a+10) * (q+10);
+    x = a+10 * (q+10);
     print format, x;
     return x;
 }
@@ -33,6 +33,8 @@ computer2: function integer(a:integer, b:integer, c:integer) = {
 }
 
 main: function void() = {
+    temp: integer = 0;
     q = computer2(1, 2, 3);
     print format, q;
+    return 0;
 }

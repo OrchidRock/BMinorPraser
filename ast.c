@@ -6,6 +6,10 @@
 #include "ast.h"
 #include "asmgen_x86_64.h"
 
+#ifdef CODEGEN_LLVM
+#include "asmgen_llvm.h"
+#endif
+
 static void type_destory(struct type*);
 static void param_list_destory(struct param_list*);
 static void expr_destory(struct  expr*);
@@ -70,18 +74,26 @@ void decl_resolve(struct decl *d){
     scope_bind(d->name, d->symbol);
 
     decl_typecheck(d); /**/
-    
-    decl_asmgen(d);
 
+#ifdef CODEGEN_LLVM
+    decl_asmgen_llvm(d);
+#else    
+    decl_asmgen(d);
+#endif
     if(d->code) { /* function */
         scope_enter();
         param_list_resolve(d->type->params);
-        stmt_asmgen(d->code);
         stmt_resolve(d->code);
+#ifdef CODEGEN_LLVM
+        stmt_asmgen_llvm(d->code, d->type);
+#else
+        stmt_asmgen(d->code, d->type);
+#endif
         scope_exit();
     }
      
     decl_resolve(d->next);
+
 }
 
 static void decl_typecheck(struct decl* target_decl){
@@ -153,6 +165,11 @@ struct param_list* param_list_create(char* name, struct type* type,
     params->next = next_params;
     return params;
 }
+int param_list_count(struct param_list* pl){
+    if(pl == NULL) return 0;
+    return (1+param_list_count(pl->next));
+}
+
 
 static void param_list_destory(struct param_list* pl){
     if(pl == NULL) return;
@@ -226,20 +243,20 @@ void stmt_resolve(struct stmt* target_stmt){
             stmt_resolve(target_stmt->body);
         }else{    
             scope_enter();
-            stmt_asmgen(target_stmt);   
+            //stmt_asmgen(target_stmt);   
             stmt_resolve(target_stmt->body);
-            stmt_asmgen_block_done(target_stmt, 1);
+            //stmt_asmgen_block_done(target_stmt, 1);
             scope_exit();
         }
     }else{
-        stmt_asmgen(target_stmt);
+        //stmt_asmgen(target_stmt);
     }
     
     
     if(target_stmt->else_body){
         scope_enter();
         stmt_resolve(target_stmt->else_body);
-        stmt_asmgen_block_done(target_stmt, 2);
+        //stmt_asmgen_block_done(target_stmt, 2);
         scope_exit();
     }
     
@@ -278,6 +295,7 @@ void stmt_typecheck(struct stmt *target_stmt){
                 break;
             case STMT_PRINT:
                 break;     
+            case STMT_WHILE:
             case STMT_IF_ELSE:
                 t = expr_typecheck(target_stmt->expr);
                 if(t->kind != TYPE_BOOLEAN){
@@ -290,6 +308,7 @@ void stmt_typecheck(struct stmt *target_stmt){
                 //stmt_typecheck(target_stmt->body);
                 //stmt_typecheck(target_stmt->else_body);
                 break;
+
             case STMT_BLOCK:
                 //stmt_typecheck(target_stmt->body);
                 break;
@@ -373,18 +392,75 @@ static void expr_destory(struct expr* target_expr){
 
 void expr_resolve(struct expr* e){
     if(!e) return;
-    if(e->kind == EXPR_NAME) {
-        e->symbol = scope_lookup(e->name);
-        if(e->symbol){
-            //printf("Find Symbol [%s] has type [%d]. \n", e->symbol->name,
-            //                e->symbol->type->kind);
-        }else{
-            fprintf(stderr, "error: symbol '%s' hasn't been declared.\n", e->name);
-        }
-    } else {
-        expr_resolve(e->left);
-        expr_resolve(e->right);       
+    switch(e->kind){
+        case EXPR_NAME:
+            e->symbol = scope_lookup(e->name);
+            if(e->symbol){
+                //printf("Find Symbol [%s] has type [%d]. \n", e->symbol->name,
+                //                e->symbol->type->kind);
+            }else{
+                fprintf(stderr, "error: symbol '%s' hasn't been declared.\n", e->name);
+            }
+            break;
+        
+        case EXPR_ADD:
+            if(e->left->kind == EXPR_NUMBER && e->right->kind == EXPR_NUMBER){
+                e->integer_value = e->left->integer_value + e->right->integer_value;
+                expr_destory(e->left);
+                expr_destory(e->right);
+                e->left = NULL;
+                e->right = NULL;
+                e->kind = EXPR_NUMBER;
+            }
+            break;
+        case EXPR_MUL:
+            if(e->left->kind == EXPR_NUMBER && e->right->kind == EXPR_NUMBER){
+                e->integer_value = e->left->integer_value * e->right->integer_value;
+                expr_destory(e->left);
+                expr_destory(e->right);
+                e->left = NULL;
+                e->right = NULL;
+                e->kind = EXPR_NUMBER;
+            }
+            break;
+        case EXPR_MOD:
+            if(e->left->kind == EXPR_NUMBER && e->right->kind == EXPR_NUMBER){
+                e->integer_value = e->left->integer_value % e->right->integer_value;
+                expr_destory(e->left);
+                expr_destory(e->right);
+                e->left = NULL;
+                e->right = NULL;
+                e->kind = EXPR_NUMBER;
+            }
+            break;
+        case EXPR_DIV:
+            if(e->left->kind == EXPR_NUMBER && e->right->kind == EXPR_NUMBER){
+                e->integer_value = e->left->integer_value / e->right->integer_value;
+                expr_destory(e->left);
+                expr_destory(e->right);
+                e->left = NULL;
+                e->right = NULL;
+                e->kind = EXPR_NUMBER;
+            }
+            break;
+        case EXPR_MINUS:
+            if(e->left->kind == EXPR_NUMBER && e->right->kind == EXPR_NUMBER){
+                e->integer_value = e->left->integer_value - e->right->integer_value;
+                expr_destory(e->left);
+                expr_destory(e->right);
+                e->left = NULL;
+                e->right = NULL;
+                e->kind = EXPR_NUMBER;
+            }
+            break;
+
+        default:
+            break;
     }
+        
+    expr_resolve(e->left);
+    expr_resolve(e->right);       
+    
     //expr_asmgen(e);
     //expr_typecheck(e);
 }
@@ -536,6 +612,7 @@ struct type* expr_typecheck(struct expr *target_expr){
                 lt->kind == TYPE_FUNCTION){
                 
             }
+            
             result = type_create(TYPE_BOOLEAN, NULL, NULL);
             break;
         default:
@@ -567,27 +644,30 @@ void expr_print_to_fd(struct expr* target_expr, FILE* fd){
                 fprintf(fd," + "); 
                 expr_print(target_expr->right);
                 break;
-        case EXPR_MUL: fprintf(fd," * "); break;
-        case EXPR_MINUS: fprintf(fd," - "); break;
+        case EXPR_MUL:
+                expr_print(target_expr->left);
+                fprintf(fd," * "); 
+                expr_print(target_expr->right);
+                break;
+        case EXPR_MINUS:
+                expr_print(target_expr->left);
+                fprintf(fd," - "); 
+                expr_print(target_expr->right);
+                break;
+        case EXPR_DIV:
+                expr_print(target_expr->left);
+                fprintf(fd," / "); 
+                expr_print(target_expr->right);
+                break;
+        case EXPR_MOD:
+                expr_print(target_expr->left);
+                fprintf(fd," %% "); 
+                expr_print(target_expr->right);
+                break;
         case EXPR_SUBCRIPT:
             fprintf(fd," [] ");
             break;
         default: fprintf(fd," expr "); break;
     }
 }
-
-char* strcopy(const char* name){
-    if(name == NULL) {
-        return NULL;
-    }
-    size_t len = strlen(name);
-    char* new_str = malloc(sizeof(char) *(len+1));
-    strncpy(new_str, name, len);
-    new_str[len] = '\0';
-
-    return new_str;
-}
-
-
-
 

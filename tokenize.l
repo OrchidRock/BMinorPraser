@@ -15,6 +15,7 @@
 "-"         { return TOKEN_MINUS; }
 "*"         { return TOKEN_MUL; }
 "/"         { return TOKEN_DIV; }
+"%"         { return TOKEN_MOD; }
 ":"         { return TOKEN_COLON; }
 ";"         { return TOKEN_SEMI; }
 "="         { return TOKEN_ASSIGN; }
@@ -24,6 +25,7 @@
 "}"         { return TOKEN_RBRACE; }
 ","         { return TOKEN_COMMA;}
 "=="        {return TOKEN_EQUAL;}
+"!="        {return TOKEN_NOTEQUAL;}
 ">"         {return TOKEN_GREATER;}
 "<"         {return TOKEN_LESS;}
 "++"        {return TOKEN_INC;}
@@ -44,6 +46,7 @@
 "if"        { return TOKEN_IF; }
 "else"      { return TOKEN_ELSE;}
 "for"        { return TOKEN_FOR; }
+"while"        { return TOKEN_WHILE; }
 "true"      {return TOKEN_BOOL_TRUE;}
 "false"     {return TOKEN_BOOL_FALSE;}
 
@@ -54,14 +57,14 @@
 <COMMENT><<EOF>>    {return 0;}
 
 \'.\'      {yylval.name = (char*)((int)yytext[1]);return TOKEN_NUMBER;}
-\".*\"      {yylval.name = strcopy(yytext); return TOKEN_STRING;}
+\".*\"      {yylval.name = strdup(yytext); return TOKEN_STRING;}
 
 0[0-7]* |
 0[Xx][0-9a-fA-F]+ |
 [1-9][0-9]*      { yylval.name = (char*)atoi(yytext); return TOKEN_NUMBER;}
 
-[_A-Za-z][_A-Za-z0-9]*  {yylval.name = strcopy(yytext); return TOKEN_NAME;}
-[ \t]+       {}
+[_A-Za-z][_A-Za-z0-9]*  {yylval.name = strdup(yytext); return TOKEN_NAME;}
+[ \t\n]+       {}
 .           { printf("Invaild Token: %c\n", *yytext);}
 
 %%

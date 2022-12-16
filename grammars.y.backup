@@ -1,10 +1,11 @@
+
 %{
 #include "ast.h"
 struct decl* parser_result = NULL;
 %}
 
 /* Keyword */
-%token TOKEN_IF TOKEN_ELSE TOKEN_FOR TOKEN_WHILE TOKEN_RETURN TOKEN_PRINT 
+%token TOKEN_IF TOKEN_ELSE TOKEN_FOR TOKEN_RETURN TOKEN_PRINT 
 %token TOKEN_BOOL TOKEN_INTEGER TOKEN_TYPE_CHAR TOKEN_TYPE_STRING TOKEN_ARRAY TOKEN_VOID
 %token TOKEN_FUNC TOKEN_BOOL_TRUE TOKEN_BOOL_FALSE 
 
@@ -39,9 +40,17 @@ struct decl* parser_result = NULL;
 %type <stmt> stmt_suite simple_stmt small_stmt
 %type <name> name
 %type <param_list> funcarg
-%type <expr> expr expr_or expr_and expr_atom expr_comp expr_incdec
-%type <expr> expr_arith expr_expon expr_unary expr_trailer expr_callarg expr_factor
+%type <expr> expr expr_atom expr_incdec
+%type <expr> expr_unary expr_trailer expr_callarg
 %type <expr> expr_name expr_number
+
+%left TOKEN_ASSIGN
+%left TOKEN_OR
+%left TOKEN_AND
+%left TOKEN_LESS TOKEN_LESSEQU TOKEN_GREATER TOKEN_GREATEREQU TOKEN_EQUAL TOKEN_NOTEQUAL
+%left TOKEN_ADD TOKEN_MINUS
+%left TOKEN_MUL TOKEN_DIV TOKEN_MOD
+%left TOKEN_EXPON
 %%
 
 program: decl_list 
@@ -100,8 +109,6 @@ simple_stmt: small_stmt {$$ = $1;}
 
 small_stmt: TOKEN_RETURN expr TOKEN_SEMI
             {$$ = stmt_create(STMT_RETURN, NULL, NULL, $2, NULL, NULL, NULL, NULL);} 
-    | TOKEN_RETURN TOKEN_SEMI
-        {$$ = stmt_create(STMT_RETURN, NULL, NULL, NULL, NULL, NULL, NULL, NULL);} 
     | TOKEN_PRINT expr TOKEN_COMMA expr TOKEN_SEMI
         {$$ = stmt_create(STMT_PRINT, NULL, NULL, $2, $4, NULL, NULL, NULL);}     
     | TOKEN_IF TOKEN_LPAREN expr TOKEN_RPAREN stmt_suite
@@ -110,8 +117,6 @@ small_stmt: TOKEN_RETURN expr TOKEN_SEMI
         {$$ = stmt_create(STMT_IF_ELSE, NULL, NULL, $3, NULL, $5, $7, NULL);}     
     | TOKEN_FOR TOKEN_LPAREN expr TOKEN_SEMI expr TOKEN_SEMI expr TOKEN_RPAREN stmt_suite
         {$$ = stmt_create(STMT_FOR, NULL, $3, $5, $7, $9, NULL, NULL);}     
-    | TOKEN_WHILE TOKEN_LPAREN  expr TOKEN_RPAREN stmt_suite
-        {$$ = stmt_create(STMT_WHILE, NULL, NULL, $3, NULL, $5, NULL, NULL); }
     | decl
         {$$ = stmt_create(STMT_DECL, $1, NULL, NULL, NULL, NULL, NULL, NULL);}     
     | expr TOKEN_SEMI
@@ -122,55 +127,36 @@ small_stmt: TOKEN_RETURN expr TOKEN_SEMI
 //    | expr_list expr
 //    ;
 
-expr: expr_or {$$ = $1;}
-    //| expr_name TOKEN_ASSIGN expr_or
-    | expr_trailer TOKEN_ASSIGN expr_or
+expr: expr_incdec {$$ = $1;}
+    | expr_trailer TOKEN_ASSIGN expr
         {$$ = expr_create(EXPR_ASSIGN, $1, $3);}
-    ;
-
-expr_or: expr_and {$$ = $1;}
-    | expr_or TOKEN_OR expr_and
+    | expr TOKEN_OR expr_unary
         {$$ = expr_create(EXPR_OR, $1, $3);}
-    ;
-
-expr_and: expr_comp {$$ = $1;}
-    | expr_and TOKEN_AND expr_comp
+    | expr TOKEN_AND expr_unary
         {$$ = expr_create(EXPR_AND, $1, $3);}
-    ;
-
-expr_comp: expr_arith {$$ = $1;}
-    | expr_comp TOKEN_LESS expr_arith
+    | expr TOKEN_LESS expr_unary
         {$$ = expr_create(EXPR_LESS, $1, $3);}
-    | expr_comp TOKEN_LESSEQU expr_arith
+    | expr TOKEN_LESSEQU expr_unary
         {$$ = expr_create(EXPR_LESSEQU, $1, $3);}
-    | expr_comp TOKEN_GREATEREQU expr_arith
+    | expr TOKEN_GREATEREQU expr_unary
         {$$ = expr_create(EXPR_GREATEREQU, $1, $3);}
-    | expr_comp TOKEN_GREATER expr_arith
+    | expr TOKEN_GREATER expr_unary
         {$$ = expr_create(EXPR_GREATER, $1, $3);}
-    | expr_comp TOKEN_EQUAL expr_arith
+    | expr TOKEN_EQUAL expr_unary
         {$$ = expr_create(EXPR_EQUAL, $1, $3);}
-    | expr_comp TOKEN_NOTEQUAL expr_arith
+    | expr TOKEN_NOTEQUAL expr_unary
         {$$ = expr_create(EXPR_NOTEQUAL, $1, $3);}
-    ;
-
-expr_arith: expr_factor {$$ = $1;}
-    | expr_arith TOKEN_ADD expr_factor
+    | expr TOKEN_ADD expr_unary
         {$$ = expr_create(EXPR_ADD, $1, $3);}
-    | expr_arith TOKEN_MINUS expr_factor
+    | expr TOKEN_MINUS expr_unary
         {$$ = expr_create(EXPR_MINUS, $1, $3);}
-    ;
-
-expr_factor: expr_expon {$$ = $1;}
-    | expr_factor TOKEN_MUL expr_expon
+    | expr TOKEN_MUL expr_unary
         {$$ = expr_create(EXPR_MUL, $1, $3);}
-    | expr_factor TOKEN_DIV expr_expon
+    | expr TOKEN_DIV expr_unary
         {$$ = expr_create(EXPR_DIV, $1, $3);}
-    | expr_factor TOKEN_MOD expr_expon
+    | expr TOKEN_MOD expr_unary
         {$$ = expr_create(EXPR_MOD, $1, $3);}
-    ;
-
-expr_expon: expr_unary {$$ = $1;}
-    | expr_expon TOKEN_EXPON expr_unary
+    | expr TOKEN_EXPON expr_unary
         {$$ = expr_create(EXPR_EXPON, $1, $3);}
     ;
 
