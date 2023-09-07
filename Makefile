@@ -33,6 +33,6 @@ test: BMinorParser_X86_64 BMinorParser_llvm test*.txt
 
 clean:
 	rm -rf *.o
-	rm -rf BMinorParser
+	rm -rf BMinorParser_llvm BMinorParser_X86_64
 	rm -rf test_function
 	rm -rf test_gcd

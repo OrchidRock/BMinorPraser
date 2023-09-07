@@ -138,6 +138,25 @@ void expr_asmgen(struct expr* target_expr){
                 scratch_free(target_expr->left->reg);
 
                 break;
+        
+        case EXPR_AND:
+                expr_asmgen(target_expr->left);
+                expr_asmgen(target_expr->right);
+                printf("    ANDQ %s, %s\n", scratch_name(target_expr->left->reg),
+                           scratch_name(target_expr->right->reg));
+                target_expr->reg = target_expr->right->reg;
+                scratch_free(target_expr->left->reg);
+
+                break;
+        
+        case EXPR_OR:
+                expr_asmgen(target_expr->left);
+                expr_asmgen(target_expr->right);
+                printf("    ORQ %s, %s\n", scratch_name(target_expr->left->reg),
+                           scratch_name(target_expr->right->reg));
+                target_expr->reg = target_expr->right->reg;
+                scratch_free(target_expr->left->reg);
+                break;
 
         case EXPR_ASSIGN:
             expr_asmgen(target_expr->right);

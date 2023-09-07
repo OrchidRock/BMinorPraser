@@ -298,7 +298,7 @@ void stmt_typecheck(struct stmt *target_stmt){
             case STMT_WHILE:
             case STMT_IF_ELSE:
                 t = expr_typecheck(target_stmt->expr);
-                if(t->kind != TYPE_BOOLEAN){
+                if(t && t->kind != TYPE_BOOLEAN){
                     fprintf(stderr, "error:");
                     type_print(t);
                     expr_print(target_stmt->expr);
@@ -615,7 +615,30 @@ struct type* expr_typecheck(struct expr *target_expr){
             
             result = type_create(TYPE_BOOLEAN, NULL, NULL);
             break;
+        
+        case EXPR_OR:
+        case EXPR_AND:
+            if(lt->kind != TYPE_BOOLEAN || rt->kind != TYPE_BOOLEAN){
+                fprintf(stderr, "error: cannot (&& or ||) a");
+                type_print(lt);
+                expr_print(target_expr->left);
+                fprintf(stderr, "to a");
+                type_print(rt);
+                expr_print(target_expr->right);
+                fprintf(stderr, ".\n");
+            }
+            result = type_create(TYPE_BOOLEAN, NULL, NULL);
+            break;
+        case EXPR_BANG:
+            if(lt->kind != TYPE_BOOLEAN){
+                fprintf(stderr, "error: cannot !a");
+                fprintf(stderr, ".\n");
+            }
+            result = type_create(TYPE_BOOLEAN, NULL, NULL);
+            break;
         default:
+            fprintf(stderr,"unknown expression: %d", target_expr->kind);
+            fprintf(stderr, ".\n");
             result = NULL;
             break;
     }

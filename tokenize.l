@@ -32,7 +32,10 @@
 "--"        {return TOKEN_DEC;}
 "["         {return TOKEN_LSQB;}
 "]"         {return TOKEN_RSQB;}
-
+"&&"        {return TOKEN_AND;}
+"||"        {return TOKEN_OR;}
+"^"         {return TOKEN_EXPON;}
+"!"         {return TOKEN_BANG;}
 
 "integer"   { return TOKEN_INTEGER; }
 "void"      { return TOKEN_VOID; }
