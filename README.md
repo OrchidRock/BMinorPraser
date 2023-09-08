@@ -4,11 +4,11 @@ BMinorParser
 This is a compiler-demo for the [B-Minor Program Language](https://www3.nd.edu/~dthain/courses/cse40243/fall2019/bminor.html).
 
 ### Dependence
-`uthash` : The Hash Table structure implemented by C.
+`uthash` : The Hash Table structure which is implemented by C.
 
 `flex`
 
-`blson`
+`bison`
 
 
 ### Structure
